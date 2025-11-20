@@ -32,7 +32,7 @@ interface Message {
 export function ChatInterface({ college, currentUserId, filter = 'all', scrollToMessageId }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [isConfession, setIsConfession] = useState(false);
+    const [isConfession, setIsConfession] = useState(filter === 'confession');
     const [loading, setLoading] = useState(false);
     const [isShake, setIsShake] = useState(false);
     const [activeMessageId, setActiveMessageId] = useState<number | null>(null);
@@ -40,6 +40,11 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
     const [reportModalOpen, setReportModalOpen] = useState(false);
     const [messageToReport, setMessageToReport] = useState<number | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Update isConfession when filter changes
+    useEffect(() => {
+        setIsConfession(filter === 'confession');
+    }, [filter]);
 
     // Memoize particles to prevent re-rendering on every state change
     const particles = useMemo(() => {
@@ -497,18 +502,20 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                     )}
 
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setIsConfession(!isConfession)}
-                            className={cn(
-                                "p-3 rounded-lg transition-all duration-200",
-                                isConfession
-                                    ? "bg-pink-500/20 text-pink-400"
-                                    : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                            )}
-                            title="Spill Tea (Confession)"
-                        >
-                            <Ghost className="w-5 h-5" />
-                        </button>
+                        {filter !== 'confession' && (
+                            <button
+                                onClick={() => setIsConfession(!isConfession)}
+                                className={cn(
+                                    "p-3 rounded-lg transition-all duration-200",
+                                    isConfession
+                                        ? "bg-pink-500/20 text-pink-400"
+                                        : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                                )}
+                                title="Spill Tea (Confession)"
+                            >
+                                <Ghost className="w-5 h-5" />
+                            </button>
+                        )}
 
                         <form onSubmit={handleSendMessage} className="flex-1 flex items-center gap-2">
                             <input

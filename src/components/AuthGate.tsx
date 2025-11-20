@@ -21,16 +21,30 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
         setError(null);
 
         try {
-            // Generate identity for new users
-            const identity = generateIdentity();
-
             let error;
             let data;
+            
             if (isLogin) {
+                // Login: don't generate new identity
                 const res = await supabase.auth.signInWithPassword({ email, password });
                 error = res.error;
                 data = res.data;
+                
+                if (data?.session?.user) {
+                    // For login, get existing identity from metadata and store in localStorage
+                    const existingUsername = data.session.user.user_metadata?.username;
+                    const existingColor = data.session.user.user_metadata?.avatar_color;
+                    if (existingUsername && existingColor) {
+                        localStorage.setItem('universe_identity', JSON.stringify({
+                            username: existingUsername,
+                            color: existingColor
+                        }));
+                    }
+                }
             } else {
+                // Signup: generate new identity only
+                const identity = generateIdentity();
+                
                 const res = await supabase.auth.signUp({
                     email,
                     password,
@@ -44,12 +58,12 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                 });
                 error = res.error;
                 data = res.data;
+                
+                // Store identity in localStorage for new signups
+                localStorage.setItem('universe_identity', JSON.stringify(identity));
             }
 
             if (error) throw error;
-
-            // Store identity in localStorage
-            localStorage.setItem('universe_identity', JSON.stringify(identity));
 
             if (!isLogin && data?.user && !data.session) {
                 setError('Signup successful! Please check your email to confirm your account before logging in.');

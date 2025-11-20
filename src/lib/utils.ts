@@ -50,6 +50,34 @@ export function getUsernameFromSession(session: any) {
     }
 }
 
+export function initializeDailyUsernameRefresh(session: any) {
+    if (!session?.user?.id) return;
+
+    const calculateTimeToMidnightIST = () => {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+        const istTime = new Date(utc + istOffset);
+
+        const nextMidnightIST = new Date(istTime);
+        nextMidnightIST.setHours(24, 0, 0, 0);
+
+        return nextMidnightIST.getTime() - istTime.getTime();
+    };
+
+    const refreshUsername = () => {
+        const identity = generateIdentity();
+        localStorage.setItem('universe_identity', JSON.stringify(identity));
+        // Reload the page to reflect new username
+        window.location.reload();
+    };
+
+    const timeToMidnight = calculateTimeToMidnightIST();
+    const timeout = setTimeout(refreshUsername, timeToMidnight);
+
+    return () => clearTimeout(timeout);
+}
+
 export const COLLEGES = [
     'PES University',
     'IIT Bombay',

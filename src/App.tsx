@@ -4,7 +4,7 @@ import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
 import { supabase } from './lib/supabase';
 import { LandingPage } from './components/LandingPage';
-import { getUsernameFromSession } from './lib/utils';
+import { getUsernameFromSession, initializeDailyUsernameRefresh } from './lib/utils';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -21,6 +21,8 @@ export default function App() {
           setCollege(userCollege);
           setShowLanding(false);
         }
+        // Initialize daily username refresh timer
+        initializeDailyUsernameRefresh(session);
       }
     });
 
@@ -34,6 +36,8 @@ export default function App() {
           setCollege(userCollege);
           setShowLanding(false);
         }
+        // Initialize daily username refresh timer
+        initializeDailyUsernameRefresh(session);
       }
     });
 
