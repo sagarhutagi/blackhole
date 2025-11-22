@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Send, AlertTriangle, Ghost, Flame, Skull, ThumbsDown, MessageCircle, X } from 'lucide-react';
+import { Send, AlertTriangle, Ghost, Flame, Skull, ThumbsDown, MessageCircle, X, Menu } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { updateHashtagGroup } from '../lib/hashtags';
@@ -11,6 +11,7 @@ interface ChatInterfaceProps {
     currentUserId: string;
     filter?: string;
     scrollToMessageId?: number | null;
+    onOpenMenu?: () => void;
 }
 
 interface Message {
@@ -29,7 +30,7 @@ interface Message {
     hashtags: string[];
 }
 
-export function ChatInterface({ college, currentUserId, filter = 'all', scrollToMessageId }: ChatInterfaceProps) {
+export function ChatInterface({ college, currentUserId, filter = 'all', scrollToMessageId, onOpenMenu }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [isConfession, setIsConfession] = useState(filter === 'confession');
@@ -91,7 +92,7 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             } else if (filter.startsWith('#')) {
                 query = query.contains('hashtags', [filter.slice(1).toLowerCase()]);
             } else {
-                query = query.neq('type', 'confession');
+                query = query.neq('type', 'confession').or('hashtags.is.null,hashtags.eq.{}');
             }
 
             const { data } = await query;
@@ -127,7 +128,9 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 (payload) => {
                     const newMsg = payload.new as Message;
                     let shouldAdd = false;
-                    if (filter === 'all' && newMsg.type !== 'confession') shouldAdd = true;
+                    if (filter === 'all' && newMsg.type !== 'confession') {
+                        if (!newMsg.hashtags || newMsg.hashtags.length === 0) shouldAdd = true;
+                    }
                     if (filter === 'confession' && newMsg.type === 'confession') shouldAdd = true;
                     if (filter.startsWith('#') && newMsg.hashtags?.includes(filter.slice(1).toLowerCase())) shouldAdd = true;
 
@@ -331,6 +334,12 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             {/* Content with relative z-index */}
             <div className="px-4 py-3 bg-slate-900/50 border-b border-white/10 backdrop-blur-md z-10 sticky top-0">
                 <div className="flex items-center space-x-2">
+                    <button
+                        onClick={onOpenMenu}
+                        className="mr-2 p-1 -ml-1 text-gray-400 hover:text-white md:hidden"
+                    >
+                        <Menu className="w-6 h-6" />
+                    </button>
                     {filter === 'confession' ? (
                         <>
                             <Ghost className="w-5 h-5 text-pink-400" />

@@ -11,6 +11,7 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [selectedCollege, setSelectedCollege] = useState(COLLEGES[0]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -23,13 +24,13 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
         try {
             let error;
             let data;
-            
+
             if (isLogin) {
                 // Login: don't generate new identity
                 const res = await supabase.auth.signInWithPassword({ email, password });
                 error = res.error;
                 data = res.data;
-                
+
                 if (data?.session?.user) {
                     // For login, get existing identity from metadata and store in localStorage
                     const existingUsername = data.session.user.user_metadata?.username;
@@ -43,8 +44,12 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                 }
             } else {
                 // Signup: generate new identity only
+                if (password !== confirmPassword) {
+                    throw new Error("Passwords do not match");
+                }
+
                 const identity = generateIdentity();
-                
+
                 const res = await supabase.auth.signUp({
                     email,
                     password,
@@ -58,7 +63,7 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                 });
                 error = res.error;
                 data = res.data;
-                
+
                 // Store identity in localStorage for new signups
                 localStorage.setItem('universe_identity', JSON.stringify(identity));
             }
@@ -158,22 +163,37 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                         </div>
 
                         {!isLogin && (
-                            <div>
-                                <div className="relative">
-                                    <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                    <select
-                                        value={selectedCollege}
-                                        onChange={(e) => setSelectedCollege(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 appearance-none cursor-pointer"
-                                    >
-                                        {COLLEGES.map((c) => (
-                                            <option key={c} value={c} className="bg-slate-900 text-white">
-                                                {c}
-                                            </option>
-                                        ))}
-                                    </select>
+                            <>
+                                <div>
+                                    <div className="relative">
+                                        <Zap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                        <input
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 placeholder-gray-500"
+                                            placeholder="Re-enter Password"
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                                <div>
+                                    <div className="relative">
+                                        <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                        <select
+                                            value={selectedCollege}
+                                            onChange={(e) => setSelectedCollege(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 appearance-none cursor-pointer"
+                                        >
+                                            {COLLEGES.map((c) => (
+                                                <option key={c} value={c} className="bg-slate-900 text-white">
+                                                    {c}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
                         )}
 
                         {error && (

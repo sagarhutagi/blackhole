@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { supabase } from './supabase';
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -40,7 +41,7 @@ export function getUsernameFromSession(session: any) {
     if (session?.user?.user_metadata?.username) {
         return session.user.user_metadata.username;
     }
-    
+
     // Fallback to localStorage
     try {
         const identity = JSON.parse(localStorage.getItem('universe_identity') || '{}');
@@ -65,17 +66,56 @@ export function initializeDailyUsernameRefresh(session: any) {
         return nextMidnightIST.getTime() - istTime.getTime();
     };
 
-    const refreshUsername = () => {
+    const refreshUsername = async () => {
         const identity = generateIdentity();
-        localStorage.setItem('universe_identity', JSON.stringify(identity));
-        // Reload the page to reflect new username
-        window.location.reload();
+
+        // Update Supabase first
+        const { error } = await supabase.auth.updateUser({
+            data: {
+                username: identity.username,
+                avatar_color: identity.color
+            }
+        });
+
+        if (!error) {
+            localStorage.setItem('universe_identity', JSON.stringify(identity));
+            // Reload the page to reflect new username
+            window.location.reload();
+        }
     };
 
     const timeToMidnight = calculateTimeToMidnightIST();
     const timeout = setTimeout(refreshUsername, timeToMidnight);
 
     return () => clearTimeout(timeout);
+}
+
+export async function syncLocalIdentityToSupabase(session: any) {
+    if (!session?.user) return;
+
+    try {
+        const localIdentityStr = localStorage.getItem('universe_identity');
+        if (!localIdentityStr) return;
+
+        const localIdentity = JSON.parse(localIdentityStr);
+        const serverIdentity = session.user.user_metadata;
+
+        // If local identity exists and is different from server, update server
+        // This handles the case where daily refresh happened locally but didn't sync
+        if (localIdentity.username &&
+            (localIdentity.username !== serverIdentity?.username ||
+                localIdentity.color !== serverIdentity?.avatar_color)) {
+
+            await supabase.auth.updateUser({
+                data: {
+                    username: localIdentity.username,
+                    avatar_color: localIdentity.color
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error syncing identity:', error);
+    }
 }
 
 export const COLLEGES = [

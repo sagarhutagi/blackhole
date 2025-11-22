@@ -4,13 +4,14 @@ import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
 import { supabase } from './lib/supabase';
 import { LandingPage } from './components/LandingPage';
-import { getUsernameFromSession, initializeDailyUsernameRefresh } from './lib/utils';
+import { getUsernameFromSession, initializeDailyUsernameRefresh, syncLocalIdentityToSupabase } from './lib/utils';
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [college, setCollege] = useState<string | null>(null);
   const [currentFilter, setCurrentFilter] = useState('all');
   const [showLanding, setShowLanding] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -23,6 +24,8 @@ export default function App() {
         }
         // Initialize daily username refresh timer
         initializeDailyUsernameRefresh(session);
+        // Sync local identity to Supabase if needed (fixes multi-device sync)
+        syncLocalIdentityToSupabase(session);
       }
     });
 
@@ -38,6 +41,8 @@ export default function App() {
         }
         // Initialize daily username refresh timer
         initializeDailyUsernameRefresh(session);
+        // Sync local identity to Supabase if needed (fixes multi-device sync)
+        syncLocalIdentityToSupabase(session);
       }
     });
 
@@ -69,6 +74,8 @@ export default function App() {
         onFilterChange={setCurrentFilter}
         onSignOut={handleSignOut}
         username={username}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
       <main className="flex-1 h-full relative">
         <ChatInterface
@@ -76,6 +83,7 @@ export default function App() {
           currentUserId={session.user.id}
           filter={currentFilter}
           scrollToMessageId={null}
+          onOpenMenu={() => setIsMobileMenuOpen(true)}
         />
       </main>
     </div>
