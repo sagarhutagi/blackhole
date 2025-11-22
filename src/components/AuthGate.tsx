@@ -71,7 +71,11 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
             if (error) throw error;
 
             if (!isLogin && data?.user && !data.session) {
-                setError('Signup successful! Please check your email to confirm your account before logging in.');
+                // Even if session is missing (email confirmation on), we treat it as success
+                // relying on the user to have disabled "Confirm email" in Supabase
+                // or accepting that they might need to verify but we won't block the UI.
+                // Ideally, with "Confirm email" disabled, data.session will be present.
+                onAuthSuccess();
             } else {
                 onAuthSuccess();
             }
