@@ -326,11 +326,12 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             </div>
 
             {/* Content with relative z-index */}
-            <div className="px-4 py-3 bg-slate-900/50 border-b border-white/10 backdrop-blur-md z-10 fixed md:sticky top-0 left-0 right-0">
+            <div className="px-4 py-3 bg-slate-900/90 border-b border-white/10 backdrop-blur-md z-50 fixed md:sticky top-0 left-0 right-0">
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={onOpenMenu}
-                        className="mr-2 p-1 -ml-1 text-gray-400 hover:text-white md:hidden"
+                        className="mr-2 p-2 -ml-1 text-gray-400 hover:text-white md:hidden z-50 relative"
+                        aria-label="Open menu"
                     >
                         <Menu className="w-6 h-6" />
                     </button>
@@ -352,7 +353,7 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                     )}
                 </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 pt-16 md:pt-4 space-y-1 scrollbar-hide pb-32 relative z-10">
+            <div className="flex-1 overflow-y-auto px-4 py-4 pt-16 md:pt-4 space-y-1 scrollbar-hide pb-32 relative z-0">
                 {filteredMessages.map((msg, index) => {
                     const isMe = msg.user_id === currentUserId;
                     const isNextSame = filteredMessages[index + 1]?.user_id === msg.user_id;
