@@ -84,3 +84,25 @@ select,
 textarea {
   transition: box-shadow 0.15s ease-out, border-color 0.15s ease-out;
 }
+
+/* Mobile Menu Utilities */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent body scroll when mobile menu is open */
+body.menu-open {
+  overflow: hidden;
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+}

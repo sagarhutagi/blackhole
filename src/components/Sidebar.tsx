@@ -89,7 +89,7 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
 
         // Cleanup inactive groups every 5 minutes
         const cleanupInterval = setInterval(() => {
-            cleanupInactiveGroups(college, 30);
+            cleanupInactiveGroups(college, 120); // Match the new 2-hour timeout
         }, 5 * 60 * 1000);
 
         return () => {

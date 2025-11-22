@@ -49,6 +49,18 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.classList.add('menu-open');
+    } else {
+      document.body.classList.remove('menu-open');
+    }
+    return () => {
+      document.body.classList.remove('menu-open');
+    };
+  }, [isMobileMenuOpen]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setCollege(null);

@@ -74,12 +74,12 @@ export async function updateHashtagGroup(college: string, hashtag: string) {
 /**
  * Clean up inactive hashtag groups and perform Global Purge
  * Removes groups with no messages in the last timeoutMinutes
- * AND removes ALL content older than the last Purge Time (Midnight UTC)
+ * AND removes ALL content older than the last Purge Time (Midnight IST)
  */
-export async function cleanupInactiveGroups(college: string, timeoutMinutes: number = 30) {
+export async function cleanupInactiveGroups(college: string, timeoutMinutes: number = 120) {
     const now = new Date();
 
-    // 1. Standard Inactive Group Cleanup
+    // 1. Standard Inactive Group Cleanup (increased to 2 hours)
     const cutoffTime = new Date(now);
     cutoffTime.setMinutes(cutoffTime.getMinutes() - timeoutMinutes);
 
@@ -93,18 +93,17 @@ export async function cleanupInactiveGroups(college: string, timeoutMinutes: num
         console.error('Error cleaning up hashtag groups:', groupError);
     }
 
-    // 2. Global Purge Logic
-    // Calculate the last purge time (Midnight UTC today or yesterday)
-    const lastPurgeTime = new Date(now);
-    lastPurgeTime.setUTCHours(0, 0, 0, 0);
-    if (now < lastPurgeTime) {
-        // Should not happen if setUTCHours works as expected for "today 00:00", 
-        // but if we are at 23:00, today 00:00 is past. 
-        // If we are at 00:01, today 00:00 is past.
-        // So lastPurgeTime is always <= now.
-    }
+    // 2. Global Purge Logic - IST Midnight (UTC+5:30)
+    // Convert current time to IST
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const istTime = new Date(utc + istOffset);
 
-    // Delete MESSAGES older than last purge time
+    // Calculate last midnight IST
+    const lastPurgeTime = new Date(istTime);
+    lastPurgeTime.setHours(0, 0, 0, 0);
+
+    // Delete MESSAGES older than last purge time (midnight IST)
     const { error: msgPurgeError } = await supabase
         .from('messages')
         .delete()
@@ -115,8 +114,7 @@ export async function cleanupInactiveGroups(college: string, timeoutMinutes: num
         console.error('Error purging old messages:', msgPurgeError);
     }
 
-    // Delete GROUPS created before last purge time
-    // (Optional: maybe we want to keep groups but empty them? User said "everything gets deleted")
+    // Delete GROUPS created before last purge time (midnight IST)
     const { error: groupPurgeError } = await supabase
         .from('hashtag_groups')
         .delete()
