@@ -663,37 +663,30 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                             <div className={cn(
                                 "max-w-[80%] min-w-[100px] relative px-3 py-2 shadow-sm transition-all cursor-pointer hover:shadow-md",
                                 "rounded-lg backdrop-blur-sm",
-                                isAdminMessage
+                                isMe
                                     ? cn(
-                                        "bg-gradient-to-r from-yellow-600 to-orange-600 text-white border border-yellow-400/50",
-                                        isMe
-                                            ? (isNextSame ? "rounded-br-sm" : "rounded-tr-none")
-                                            : (isNextSame ? "rounded-bl-sm" : "rounded-tl-none")
+                                        msg.type === 'confession'
+                                            ? "bg-pink-600 text-white"
+                                            : "bg-primary text-white",
+                                        isNextSame ? "rounded-br-sm" : "rounded-tr-none"
                                     )
-                                    : isMe
-                                        ? cn(
-                                            msg.type === 'confession'
-                                                ? "bg-pink-600 text-white"
-                                                : "bg-primary text-white",
-                                            isNextSame ? "rounded-br-sm" : "rounded-tr-none"
-                                        )
-                                        : cn(
-                                            msg.type === 'confession'
-                                                ? "bg-pink-600 text-white"
-                                                : "bg-slate-800 text-gray-100 hover:bg-slate-700",
-                                            isNextSame ? "rounded-bl-sm" : "rounded-tl-none"
-                                        ),
-                                msg.aura > 10 && !isAdminMessage && "border border-yellow-500/30",
+                                    : cn(
+                                        msg.type === 'confession'
+                                            ? "bg-pink-600 text-white"
+                                            : "bg-slate-800 text-gray-100 hover:bg-slate-700",
+                                        isNextSame ? "rounded-bl-sm" : "rounded-tl-none"
+                                    ),
+                                msg.aura > 10 && "border border-yellow-500/30",
                                 activeMessageId === msg.id ? "ring-2 ring-white/20 z-10" : ""
                             )}>
                                 {!isMe && (
                                     <div className="flex items-center space-x-2 mb-1">
-                                        <span className="block text-[12px] font-bold tracking-wide opacity-90 truncate" style={{ color: isAdminMessage ? '#fff' : (msg.type === 'confession' ? '#fff' : msg.avatar_color) }}>
+                                        <span className="block text-[12px] font-bold tracking-wide opacity-90 truncate" style={{ color: msg.type === 'confession' ? '#fff' : msg.avatar_color }}>
                                             {msg.username}
                                         </span>
                                         {isAdminMessage && (
-                                            <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-yellow-500 text-black border border-yellow-300">
-                                                {msg.username === 'creator' ? 'Creator' : 'Admin'}
+                                            <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-500 to-orange-500 text-white border border-yellow-400/30 shadow-lg">
+                                                {msg.username === 'creator' ? '⭐ Creator' : 'Admin'}
                                             </span>
                                         )}
                                         {msg.type === 'confession' && (
@@ -706,6 +699,13 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                                 Thread
                                             </span>
                                         )}
+                                    </div>
+                                )}
+                                {isMe && isAdminMessage && (
+                                    <div className="flex justify-end mb-1">
+                                        <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-500 to-orange-500 text-white border border-yellow-400/30 shadow-lg">
+                                            {msg.username === 'creator' ? '⭐ Creator' : 'Admin'}
+                                        </span>
                                     </div>
                                 )}
                                 {isMe && msg.thread_id && (
