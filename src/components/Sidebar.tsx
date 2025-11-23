@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTopHashtags, cleanupInactiveGroups } from '../lib/hashtags';
 import { HallOfFame } from './HallOfFame';
-import { Hash, MessageCircle, Ghost, ChevronLeft, ChevronRight, LogOut, Plus, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ProfileModal } from './ProfileModal';
+import { Hash, MessageCircle, Ghost, ChevronLeft, ChevronRight, LogOut, Plus, ChevronDown, ChevronUp, X, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -32,9 +33,18 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [timeToPurge, setTimeToPurge] = useState('');
-    const [hallOfFameExpanded, setHallOfFameExpanded] = useState(false);
+    const [hallOfFameExpanded, setHallOfFameExpanded] = useState(true);
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const displayedGroups = showAllGroups ? hashtagGroups : hashtagGroups.slice(0, 5);
+
+    useEffect(() => {
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setCurrentUserId(user?.id || null);
+        })();
+    }, []);
 
     useEffect(() => {
         // Purge Timer Logic - IST Midnight (UTC+5:30)
@@ -134,33 +144,33 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
         const tag = newGroupName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!tag) return;
 
-        // Check for group limit (1 per 24h)
+        // Check for group limit (1 active group per user globally)
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
         try {
+            // Check if user already has an active group (across all colleges)
             const { data: userGroups } = await supabase
                 .from('hashtag_groups')
-                .select('created_at')
+                .select('id, hashtag, college')
                 .eq('created_by', user.id)
-                .gte('created_at', oneDayAgo);
+                .eq('is_active', true);
 
             if (userGroups && userGroups.length > 0) {
-                alert('You can only create 1 group every 24 hours.');
+                alert(`You already have an active group: #${userGroups[0].hashtag} in ${userGroups[0].college}. You can only create one group total.`);
                 return;
             }
         } catch (err) {
-            console.warn("Could not check group limit (schema might be missing created_by):", err);
+            console.warn('Could not check group limit:', err);
         }
 
         await supabase.from('hashtag_groups').insert({
             college,
             hashtag: tag,
             message_count: 0,
-            last_message_at: new Date().toISOString(), // Set timestamp so group appears immediately
-            created_by: user.id
+            last_message_at: new Date().toISOString(),
+            created_by: user.id,
+            is_active: true
         });
 
         setNewGroupName('');
@@ -198,7 +208,7 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                 {/* Mobile Close Button */}
                 <button
                     onClick={onClose}
-                    className="absolute right-4 top-4 p-1 text-gray-400 hover:text-white md:hidden"
+                    className="absolute right-4 top-4 p-1 text-gray-400 hover:text-white md:hidden z-10"
                 >
                     <X className="w-6 h-6" />
                 </button>
@@ -221,7 +231,7 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                             <span className="font-bold text-white text-lg">BH</span>
                         </div>
                     ) : (
-                        <div className="pr-8 md:pr-0">
+                        <div>
                             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-violet-300 to-white">Black Hole</h2>
                             {username && (
                                 <p className="text-xs text-gray-400 mt-1">@{username}</p>
@@ -247,6 +257,13 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                                 <span className="text-[10px] font-mono text-red-400" title="Time until Purge">
                                     {timeToPurge}
                                 </span>
+                                <button
+                                    onClick={() => setShowProfileModal(true)}
+                                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-all"
+                                    title="My Profile"
+                                >
+                                    <User className="w-4 h-4" />
+                                </button>
                                 <button
                                     onClick={onSignOut}
                                     className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
@@ -408,7 +425,14 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
 
                 {/* Collapsed Footer (Sign Out) */}
                 {isCollapsed && (
-                    <div className="p-3 border-t border-white/10 flex justify-center">
+                    <div className="p-3 border-t border-white/10 flex flex-col items-center gap-2">
+                        <button
+                            onClick={() => setShowProfileModal(true)}
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                            title="My Profile"
+                        >
+                            <User className="w-4 h-4" />
+                        </button>
                         <button
                             onClick={onSignOut}
                             className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
@@ -419,6 +443,13 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                     </div>
                 )}
             </div>
+
+            {/* Profile Modal */}
+            <ProfileModal
+                userId={currentUserId}
+                isOpen={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+            />
         </>
     );
 }

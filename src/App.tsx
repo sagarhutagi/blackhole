@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AuthGate } from './components/AuthGate';
 import { ChatInterface } from './components/ChatInterface';
 import { Sidebar } from './components/Sidebar';
+import { ProfileCompletionModal } from './components/ProfileCompletionModal';
 import { supabase } from './lib/supabase';
 import { LandingPage } from './components/LandingPage';
 import { getUsernameFromSession, initializeDailyUsernameRefresh, syncLocalIdentityToSupabase } from './lib/utils';
@@ -12,6 +13,7 @@ export default function App() {
   const [currentFilter, setCurrentFilter] = useState('all');
   const [showLanding, setShowLanding] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -80,6 +82,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden">
+      {session && !profileCompleted && (
+        <ProfileCompletionModal
+          userId={session.user.id}
+          onComplete={() => setProfileCompleted(true)}
+        />
+      )}
       <Sidebar
         college={college}
         currentFilter={currentFilter}

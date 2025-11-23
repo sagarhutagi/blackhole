@@ -13,6 +13,9 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [selectedCollege, setSelectedCollege] = useState(COLLEGES[0]);
+    const [gender, setGender] = useState('');
+    const [branch, setBranch] = useState('');
+    const [year, setYear] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +51,24 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                     throw new Error("Passwords do not match");
                 }
 
-                const identity = generateIdentity();
+                // Ensure generated username is unique across profiles
+                let identity = generateIdentity();
+                let exists = null;
+                try {
+                    const { data: existing } = await supabase.from('profiles').select('id').eq('username', identity.username).maybeSingle();
+                    exists = existing;
+                } catch (e) {
+                    exists = null;
+                }
+
+                // Regenerate until unique (safeguard loop)
+                let attempts = 0;
+                while (exists && attempts < 10) {
+                    identity = generateIdentity();
+                    const { data: existing } = await supabase.from('profiles').select('id').eq('username', identity.username).maybeSingle();
+                    exists = existing;
+                    attempts++;
+                }
 
                 const res = await supabase.auth.signUp({
                     email,
@@ -66,6 +86,27 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
 
                 // Store identity in localStorage for new signups
                 localStorage.setItem('universe_identity', JSON.stringify(identity));
+
+                // If user created successfully, create a profile row
+                try {
+                    const { data: userData } = await supabase.auth.getUser();
+                    const user = userData?.user || (data as any)?.user || null;
+                    if (user) {
+                        await supabase.from('profiles').upsert({
+                            id: user.id,
+                            email,
+                            college: selectedCollege,
+                            username: identity.username,
+                            avatar_color: identity.color,
+                            gender: gender || null,
+                            branch: branch || null,
+                            year: year || null,
+                            karma: 0
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Could not create profile row automatically:', e);
+                }
             }
 
             if (error) throw error;
@@ -192,6 +233,44 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                                             ))}
                                         </select>
                                     </div>
+                                </div>
+                                <div>
+                                    <select
+                                        value={gender}
+                                        onChange={(e) => setGender(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 appearance-none cursor-pointer"
+                                        required
+                                    >
+                                        <option value="" className="bg-slate-900">Select Gender</option>
+                                        <option value="Male" className="bg-slate-900">Male</option>
+                                        <option value="Female" className="bg-slate-900">Female</option>
+                                        <option value="Other" className="bg-slate-900">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={branch}
+                                        onChange={(e) => setBranch(e.target.value)}
+                                        placeholder="Branch (e.g., Computer Science)"
+                                        className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 placeholder-gray-500"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <select
+                                        value={year}
+                                        onChange={(e) => setYear(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 text-white rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 appearance-none cursor-pointer"
+                                        required
+                                    >
+                                        <option value="" className="bg-slate-900">Select Year</option>
+                                        <option value="1st Year" className="bg-slate-900">1st Year</option>
+                                        <option value="2nd Year" className="bg-slate-900">2nd Year</option>
+                                        <option value="3rd Year" className="bg-slate-900">3rd Year</option>
+                                        <option value="4th Year" className="bg-slate-900">4th Year</option>
+                                        <option value="Graduate" className="bg-slate-900">Graduate</option>
+                                    </select>
                                 </div>
                             </>
                         )}

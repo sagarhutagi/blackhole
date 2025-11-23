@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Send, AlertTriangle, Ghost, Flame, Skull, ThumbsDown, MessageCircle, X, Menu } from 'lucide-react';
+import { Send, AlertTriangle, Flame, Skull, Smile, Frown, MessageCircle, X, Menu, Ghost, User } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { updateHashtagGroup } from '../lib/hashtags';
 import { ReportModal } from './ReportModal';
+import { ProfileModal } from './ProfileModal';
 
 interface ChatInterfaceProps {
     college: string;
@@ -28,6 +29,7 @@ interface Message {
     created_at: string;
     user_id: string;
     hashtags: string[];
+    group_name: string;
 }
 
 export function ChatInterface({ college, currentUserId, filter = 'all', scrollToMessageId, onOpenMenu }: ChatInterfaceProps) {
@@ -40,12 +42,41 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [reportModalOpen, setReportModalOpen] = useState(false);
     const [messageToReport, setMessageToReport] = useState<number | null>(null);
+    // highlightedMessageId removed (unused)
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Update isConfession when filter changes
     useEffect(() => {
         setIsConfession(filter === 'confession');
     }, [filter]);
+
+    // Calculate remaining confessions
+    useEffect(() => {
+        const checkRemainingConfessions = async () => {
+            if (!isConfession) return;
+            try {
+                const now = new Date();
+                const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                const istOffset = 5.5 * 60 * 60 * 1000;
+                const istTime = new Date(utc + istOffset);
+                const todayMidnightIST = new Date(istTime);
+                todayMidnightIST.setHours(0, 0, 0, 0);
+
+                const { data: confessions } = await supabase
+                    .from('messages')
+                    .select('id')
+                    .eq('user_id', currentUserId)
+                    .eq('type', 'confession')
+                    .gte('created_at', todayMidnightIST.toISOString());
+
+                const used = confessions?.length || 0;
+                setRemainingConfessions(Math.max(0, 2 - used));
+            } catch (e) {
+                console.warn('Could not check remaining confessions:', e);
+            }
+        };
+        checkRemainingConfessions();
+    }, [isConfession, currentUserId, messages]);
 
     // Memoize particles to prevent re-rendering on every state change
     const particles = useMemo(() => {
@@ -77,23 +108,25 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             if (scrollToMessageId) {
                 query = query.limit(500);
             } else {
-                query = query.limit(500); // Increased from 50 to 500
+                query = query.limit(500);
             }
 
+            // Filter by group_name instead of type/hashtags
             if (filter === 'confession') {
-                query = query.eq('type', 'confession');
+                query = query.eq('group_name', 'confession');
             } else if (filter.startsWith('#')) {
-                query = query.contains('hashtags', [filter.slice(1).toLowerCase()]);
+                query = query.eq('group_name', filter.slice(1).toLowerCase());
             } else {
-                // Fixed: Load all non-confession messages for 'all' filter
-                query = query.neq('type', 'confession');
+                // 'all' filter shows main group only
+                query = query.eq('group_name', 'main');
             }
 
             const { data } = await query;
 
             if (data) {
+                let list = data as Message[];
                 if (scrollToMessageId) {
-                    const exists = data.find(m => m.id === scrollToMessageId);
+                    const exists = list.find(m => m.id === scrollToMessageId);
                     if (!exists) {
                         const { data: missingMsg } = await supabase
                             .from('messages')
@@ -102,12 +135,12 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                             .single();
 
                         if (missingMsg) {
-                            data.push(missingMsg);
-                            data.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                            list.push(missingMsg as Message);
+                            list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
                         }
                     }
                 }
-                setMessages(data);
+                setMessages(list);
             }
             setLoading(false);
         };
@@ -122,11 +155,11 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 (payload) => {
                     const newMsg = payload.new as Message;
                     let shouldAdd = false;
-                    if (filter === 'all' && newMsg.type !== 'confession') {
-                        if (!newMsg.hashtags || newMsg.hashtags.length === 0) shouldAdd = true;
-                    }
-                    if (filter === 'confession' && newMsg.type === 'confession') shouldAdd = true;
-                    if (filter.startsWith('#') && newMsg.hashtags?.includes(filter.slice(1).toLowerCase())) shouldAdd = true;
+                    
+                    // Check if message belongs to current group/filter
+                    if (filter === 'all' && newMsg.group_name === 'main') shouldAdd = true;
+                    if (filter === 'confession' && newMsg.group_name === 'confession') shouldAdd = true;
+                    if (filter.startsWith('#') && newMsg.group_name === filter.slice(1).toLowerCase()) shouldAdd = true;
 
                     if (shouldAdd) {
                         setMessages((prev) => [...prev, newMsg]);
@@ -171,6 +204,10 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         if (localAura < 0) setIsShake(true);
     }, []);
 
+    const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [profileUserId, setProfileUserId] = useState<string | null>(null);
+    const [remainingConfessions, setRemainingConfessions] = useState(2);
+
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim()) return;
@@ -181,14 +218,41 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             return;
         }
 
+        // Check confession limit: max 2 confessions per day
+        if (isConfession) {
+            try {
+                const now = new Date();
+                const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                const istOffset = 5.5 * 60 * 60 * 1000;
+                const istTime = new Date(utc + istOffset);
+                const todayMidnightIST = new Date(istTime);
+                todayMidnightIST.setHours(0, 0, 0, 0);
+
+                const { data: confessions } = await supabase
+                    .from('messages')
+                    .select('id')
+                    .eq('user_id', currentUserId)
+                    .eq('type', 'confession')
+                    .gte('created_at', todayMidnightIST.toISOString());
+
+                if (confessions && confessions.length >= 2) {
+                    alert('You can only post 2 confessions per day. Try again after midnight IST.');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Could not check confession limit:', e);
+            }
+        }
+
         setLoading(true);
         const identity = JSON.parse(localStorage.getItem('universe_identity') || '{}');
 
-        let hashtags: string[] = [];
-
-        if (filter.startsWith('#')) {
-            const currentTag = filter.slice(1).toLowerCase();
-            hashtags.push(currentTag);
+        // Determine group_name based on current filter and confession mode
+        let groupName = 'main';
+        if (isConfession) {
+            groupName = 'confession';
+        } else if (filter.startsWith('#')) {
+            groupName = filter.slice(1).toLowerCase();
         }
 
         const { error } = await supabase.from('messages').insert({
@@ -198,19 +262,29 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             username: identity.username || 'Anon',
             avatar_color: identity.color || '#8B5CF6',
             type: isConfession ? 'confession' : 'text',
+            group_name: groupName,
             aura: 0,
             flags: 0,
             reactions: {},
             reports: {},
             reply_to_id: replyingTo?.id || null,
-            hashtags
+            hashtags: groupName !== 'main' && groupName !== 'confession' ? [groupName] : []
         });
 
         if (error) {
             console.error('Error sending message:', error);
         } else {
-            for (const tag of hashtags) {
-                await updateHashtagGroup(college, tag);
+            // Update hashtag group count if posting to a group
+            if (groupName !== 'main' && groupName !== 'confession') {
+                await updateHashtagGroup(college, groupName);
+            }
+            // Increase karma for user who posted
+            try {
+                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', currentUserId).maybeSingle();
+                const currentKarma = profile?.karma ?? 0;
+                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', currentUserId);
+            } catch (e) {
+                console.warn('Could not update karma:', e);
             }
             setNewMessage('');
             setReplyingTo(null);
@@ -224,28 +298,28 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
 
         const currentReactions = msg.reactions || {};
         let newReactions = { ...currentReactions };
-        let auraChange = 0;
-
+        // Toggle reaction: remove current user's id from any existing emoji, then add to selected emoji
         Object.keys(newReactions).forEach(key => {
-            if (newReactions[key].includes(currentUserId)) {
-                newReactions[key] = newReactions[key].filter(uid => uid !== currentUserId);
-                auraChange -= (key === 'flame' || key === 'skull' ? 1 : -1);
+            if (Array.isArray(newReactions[key]) && newReactions[key].includes(currentUserId)) {
+                newReactions[key] = newReactions[key].filter((uid: string) => uid !== currentUserId);
             }
         });
 
-        const wasAlreadyReacted = currentReactions[emoji]?.includes(currentUserId);
-
-        if (!wasAlreadyReacted) {
+        const wasAlready = Array.isArray(currentReactions[emoji]) && currentReactions[emoji].includes(currentUserId);
+        if (!wasAlready) {
             newReactions[emoji] = [...(newReactions[emoji] || []), currentUserId];
-            auraChange += (emoji === 'flame' || emoji === 'skull' ? 1 : -1);
+            
+            // Increment karma for message author when they receive a reaction
+            try {
+                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', msg.user_id).maybeSingle();
+                const currentKarma = profile?.karma ?? 0;
+                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', msg.user_id);
+            } catch (e) {
+                console.warn('Could not update karma:', e);
+            }
         }
 
-        const newAura = (msg.aura || 0) + auraChange;
-
-        await supabase.from('messages').update({
-            aura: newAura,
-            reactions: newReactions
-        }).eq('id', id);
+        await supabase.from('messages').update({ reactions: newReactions }).eq('id', id);
 
         setActiveMessageId(null);
     };
@@ -283,12 +357,14 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         setActiveMessageId(null);
     };
 
+    // handleReplyClick removed (unused)
+
     const filteredMessages = messages.filter(msg => {
-        if (filter === 'all') return msg.type !== 'confession';
-        if (filter === 'confession') return msg.type === 'confession';
+        if (filter === 'all') return msg.group_name === 'main';
+        if (filter === 'confession') return msg.group_name === 'confession';
         if (filter.startsWith('#')) {
-            const hashtag = filter.slice(1).toLowerCase();
-            return msg.hashtags?.includes(hashtag);
+            const groupName = filter.slice(1).toLowerCase();
+            return msg.group_name === groupName;
         }
         return true;
     });
@@ -325,16 +401,18 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 </div>
             </div>
 
+            {/* Mobile menu button - positioned absolutely at top-left */}
+            <button
+                onClick={onOpenMenu}
+                className="fixed top-3 left-3 p-2 text-gray-400 hover:text-white bg-slate-900/90 rounded-lg backdrop-blur-md border border-white/10 md:hidden z-[60]"
+                aria-label="Open menu"
+            >
+                <Menu className="w-6 h-6" />
+            </button>
+
             {/* Content with relative z-index */}
             <div className="px-4 py-3 bg-slate-900/90 border-b border-white/10 backdrop-blur-md z-50 fixed md:sticky top-0 left-0 right-0">
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={onOpenMenu}
-                        className="mr-2 p-2 -ml-1 text-gray-400 hover:text-white md:hidden z-50 relative"
-                        aria-label="Open menu"
-                    >
-                        <Menu className="w-6 h-6" />
-                    </button>
+                <div className="flex items-center space-x-2 md:space-x-2 pl-12 md:pl-0">
                     {filter === 'confession' ? (
                         <>
                             <Ghost className="w-5 h-5 text-pink-400" />
@@ -391,7 +469,7 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                             )}>
                                 {!isMe && (
                                     <div className="flex items-center space-x-2 mb-1">
-                                        <span className="text-[10px] font-bold tracking-wide opacity-80" style={{ color: msg.type === 'confession' ? '#fff' : msg.avatar_color }}>
+                                        <span className="block text-[12px] font-bold tracking-wide opacity-90 truncate" style={{ color: msg.type === 'confession' ? '#fff' : msg.avatar_color }}>
                                             {msg.username}
                                         </span>
                                         {msg.type === 'confession' && (
@@ -426,10 +504,10 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                                         ? "bg-primary/20 border-primary/50 text-white"
                                                         : "bg-white/5 border-white/5 text-gray-300"
                                                 )}>
-                                                    {emoji === 'flame' && <Flame className="w-3 h-3" />}
+                                                    {emoji === 'fire' && <Flame className="w-3 h-3" />}
                                                     {emoji === 'skull' && <Skull className="w-3 h-3" />}
-                                                    {emoji === 'clown' && <ThumbsDown className="w-3 h-3" />}
-                                                    {emoji === 'ghost' && <Ghost className="w-3 h-3" />}
+                                                    {emoji === 'laugh' && <Smile className="w-3 h-3" />}
+                                                    {emoji === 'cry' && <Frown className="w-3 h-3" />}
                                                     <span className="font-bold">{users.length}</span>
                                                 </span>
                                             )
@@ -460,21 +538,24 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                         "absolute -bottom-10 bg-slate-900 border border-white/10 rounded-xl p-1.5 flex items-center space-x-1 shadow-xl z-20 animate-in fade-in zoom-in-95 duration-200",
                                         isMe ? "right-0" : "left-0"
                                     )}>
-                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'flame'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'flame', currentUserId) ? "text-orange-400 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-orange-400")} title="Lit">
+                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'fire'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'fire', currentUserId) ? "text-orange-400 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-orange-400")} title="Fire">
                                             <Flame className="w-4 h-4" />
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'clown'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'clown', currentUserId) ? "text-blue-400 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-blue-400")} title="Cap">
-                                            <ThumbsDown className="w-4 h-4" />
+                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'laugh'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'laugh', currentUserId) ? "text-yellow-300 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-yellow-300")} title="Laugh">
+                                            <Smile className="w-4 h-4" />
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'ghost'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'ghost', currentUserId) ? "text-yellow-400 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-yellow-400")} title="Cringe">
-                                            <Ghost className="w-4 h-4" />
+                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'cry'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'cry', currentUserId) ? "text-blue-400 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-blue-400")} title="Cry">
+                                            <Frown className="w-4 h-4" />
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'skull'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'skull', currentUserId) ? "text-red-500 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-red-500")} title="Dead">
+                                        <button onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, 'skull'); }} className={cn("p-1.5 rounded-lg transition-colors", hasReacted(msg, 'skull', currentUserId) ? "text-red-500 bg-white/10" : "text-gray-400 hover:bg-white/10 hover:text-red-500")} title="Skull">
                                             <Skull className="w-4 h-4" />
                                         </button>
                                         <div className="w-px h-3 bg-white/10 mx-1" />
                                         <button onClick={(e) => { e.stopPropagation(); handleReply(msg); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-primary transition-colors" title="Reply">
                                             <MessageCircle className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); setProfileUserId(msg.user_id); setProfileModalOpen(true); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="View Profile">
+                                            <User className="w-4 h-4" />
                                         </button>
                                         <button onClick={(e) => { e.stopPropagation(); handleFlag(msg.id); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-500 transition-colors">
                                             <AlertTriangle className="w-4 h-4" />
@@ -487,6 +568,8 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 })}
                 <div ref={messagesEndRef} />
             </div>
+
+            <ProfileModal isOpen={profileModalOpen} userId={profileUserId} onClose={() => setProfileModalOpen(false)} />
 
             <div className={cn(
                 "absolute bottom-4 left-4 right-4 z-30",
@@ -526,7 +609,7 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                 type="text"
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
-                                placeholder={isConfession ? "Spill the tea anonymously..." : "Yap here..."}
+                                placeholder={isConfession ? `Spill the tea anonymously... (${remainingConfessions}/2 left today)` : "Yap here..."}
                                 className={cn(
                                     "flex-1 bg-transparent text-white py-3 px-2 focus:outline-none placeholder-gray-500 text-[15px]",
                                     isConfession && "placeholder-pink-500/50"
