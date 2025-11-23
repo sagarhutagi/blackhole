@@ -307,7 +307,14 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             try {
                 const { data: profile } = await supabase.from('profiles').select('aura').eq('id', currentUserId).maybeSingle();
                 const currentAura = profile?.aura ?? 0;
-                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', currentUserId);
+                // +1 for main, +2 for subgroup, +10 for confession
+                let auraGain = 1;
+                if (isConfession) {
+                    auraGain = 10;
+                } else if (groupName !== 'main') {
+                    auraGain = 2;
+                }
+                await supabase.from('profiles').update({ aura: currentAura + auraGain }).eq('id', currentUserId);
             } catch (e) {
                 console.warn('Could not update aura:', e);
             }
@@ -334,11 +341,11 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         if (!wasAlready) {
             newReactions[emoji] = [...(newReactions[emoji] || []), currentUserId];
             
-            // Increment aura for message author when they receive a reaction
+            // Increment aura for message author when they receive a reaction (+3 points)
             try {
                 const { data: profile } = await supabase.from('profiles').select('aura').eq('id', msg.user_id).maybeSingle();
                 const currentAura = profile?.aura ?? 0;
-                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', msg.user_id);
+                await supabase.from('profiles').update({ aura: currentAura + 3 }).eq('id', msg.user_id);
             } catch (e) {
                 console.warn('Could not update aura:', e);
             }
@@ -533,11 +540,11 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 );
             }
 
-            // Update aura
+            // Update aura (+10 for confession thread)
             try {
                 const { data: profile } = await supabase.from('profiles').select('aura').eq('id', currentUserId).maybeSingle();
                 const currentAura = profile?.aura ?? 0;
-                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', currentUserId);
+                await supabase.from('profiles').update({ aura: currentAura + 10 }).eq('id', currentUserId);
             } catch (e) {
                 console.warn('Could not update aura:', e);
             }
