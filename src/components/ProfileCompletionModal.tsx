@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Save } from 'lucide-react';
 
@@ -14,24 +14,25 @@ export function ProfileCompletionModal({ userId, onComplete }: ProfileCompletion
     const [branch, setBranch] = useState('');
     const [year, setYear] = useState('');
 
-    useEffect(() => {
-        checkProfileCompletion();
-    }, [userId]);
-
-    const checkProfileCompletion = async () => {
+    const checkProfileCompletion = useCallback(async () => {
         const { data: profile } = await supabase
             .from('profiles')
             .select('gender, branch, year')
             .eq('id', userId)
             .maybeSingle();
 
-        if (profile && (!profile.gender || !profile.branch || !profile.year)) {
+        // If profile doesn't exist OR fields are missing, show modal
+        if (!profile || !profile.gender || !profile.branch || !profile.year) {
             setIsOpen(true);
-            setGender(profile.gender || '');
-            setBranch(profile.branch || '');
-            setYear(profile.year || '');
+            setGender(profile?.gender || '');
+            setBranch(profile?.branch || '');
+            setYear(profile?.year || '');
         }
-    };
+    }, [userId]);
+
+    useEffect(() => {
+        checkProfileCompletion();
+    }, [checkProfileCompletion]);
 
     const handleSaveProfile = async () => {
         if (!gender || !branch || !year) {
@@ -40,14 +41,49 @@ export function ProfileCompletionModal({ userId, onComplete }: ProfileCompletion
         }
 
         setLoading(true);
-        const { error } = await supabase
+        
+        // First check if profile exists
+        const { data: existingProfile } = await supabase
             .from('profiles')
-            .update({ gender, branch, year })
-            .eq('id', userId);
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+
+        let error;
+        
+        if (existingProfile) {
+            // Profile exists, update it
+            const result = await supabase
+                .from('profiles')
+                .update({ gender, branch, year })
+                .eq('id', userId);
+            error = result.error;
+        } else {
+            // Profile doesn't exist, create it with user info
+            const { data: { user } } = await supabase.auth.getUser();
+            const identity = JSON.parse(localStorage.getItem('universe_identity') || '{}');
+            
+            const result = await supabase
+                .from('profiles')
+                .insert({
+                    id: userId,
+                    email: user?.email || null,
+                    college: identity.college || null,
+                    username: identity.username || null,
+                    avatar_color: identity.color || '#8B5CF6',
+                    gender,
+                    branch,
+                    year,
+                    karma: 0,
+                    role: 'user',
+                    is_creator: false
+                });
+            error = result.error;
+        }
 
         if (error) {
-            console.error('Error updating profile:', error);
-            alert('Failed to update profile. Please try again.');
+            console.error('Error saving profile:', error);
+            alert('Failed to save profile. Please try again.');
         } else {
             setIsOpen(false);
             onComplete();

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getISTMidnight } from './utils';
 
 /**
  * Extract hashtags from message content
@@ -16,6 +17,7 @@ export function extractHashtags(content: string): string[] {
 
 /**
  * Get top N active hashtag groups for a college
+ * Fixed: Using single optimized query instead of N+1 queries
  */
 export async function getTopHashtags(college: string, limit: number = 50) {
     const { data, error } = await supabase
@@ -35,42 +37,32 @@ export async function getTopHashtags(college: string, limit: number = 50) {
 
 /**
  * Update or create hashtag group when a message with hashtag is sent
+ * Note: Message counts are now automatically maintained by database triggers
+ * This function only ensures the group exists
  */
 export async function updateHashtagGroup(college: string, hashtag: string) {
-    // Try to update existing group
+    // Check if group exists, create if not
+    // The trigger will handle count updates automatically
     const { data: existing } = await supabase
         .from('hashtag_groups')
-        .select('*')
+        .select('id')
         .eq('college', college)
         .eq('hashtag', hashtag)
-        .single();
+        .maybeSingle();
 
-    if (existing) {
-        // Update existing group
-        await supabase
-            .from('hashtag_groups')
-            .update({
-                message_count: existing.message_count + 1,
-                last_message_at: new Date().toISOString()
-            })
-            .eq('id', existing.id);
-    } else {
-        // Create new group
+    if (!existing) {
+        // Create new group (trigger will set count to 1 on first message)
         await supabase
             .from('hashtag_groups')
             .insert({
                 college,
                 hashtag,
-                message_count: 1,
+                message_count: 0,
                 last_message_at: new Date().toISOString()
             });
     }
 }
 
-/**
- * Clean up inactive hashtag groups
- * Removes groups with no messages in the last timeoutMinutes
- */
 /**
  * Clean up inactive hashtag groups and perform Global Purge
  * Removes groups with no messages in the last timeoutMinutes
@@ -94,14 +86,7 @@ export async function cleanupInactiveGroups(college: string, timeoutMinutes: num
     }
 
     // 2. Global Purge Logic - IST Midnight (UTC+5:30)
-    // Convert current time to IST
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-    const istTime = new Date(utc + istOffset);
-
-    // Calculate last midnight IST
-    const lastPurgeTime = new Date(istTime);
-    lastPurgeTime.setHours(0, 0, 0, 0);
+    const lastPurgeTime = getISTMidnight();
 
     // Delete MESSAGES older than last purge time (midnight IST)
     const { error: msgPurgeError } = await supabase

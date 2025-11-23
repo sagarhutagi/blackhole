@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Send, AlertTriangle, Flame, Skull, Smile, Frown, MessageCircle, X, Menu, Ghost, User } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Send, AlertTriangle, Flame, Skull, Smile, Frown, MessageCircle, X, Menu, Ghost, User, Edit2, Users, Bell, Trash2 } from 'lucide-react';
+import { cn, getISTMidnight } from '../lib/utils';
 import { format } from 'date-fns';
 import { updateHashtagGroup } from '../lib/hashtags';
 import { ReportModal } from './ReportModal';
@@ -30,6 +30,11 @@ interface Message {
     user_id: string;
     hashtags: string[];
     group_name: string;
+    edited_at?: string;
+    is_edited: boolean;
+    thread_id?: number;
+    me_too_count: number;
+    me_too_users: string[];
 }
 
 export function ChatInterface({ college, currentUserId, filter = 'all', scrollToMessageId, onOpenMenu }: ChatInterfaceProps) {
@@ -42,41 +47,57 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [reportModalOpen, setReportModalOpen] = useState(false);
     const [messageToReport, setMessageToReport] = useState<number | null>(null);
-    // highlightedMessageId removed (unused)
+    const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [profileUserId, setProfileUserId] = useState<string | null>(null);
+    const [remainingConfessions, setRemainingConfessions] = useState(2);
+    const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+    const [editContent, setEditContent] = useState('');
+    const [isAdmin, setIsAdmin] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Check if user is admin
+    useEffect(() => {
+        (async () => {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', currentUserId)
+                .maybeSingle();
+            
+            if (profile?.role === 'admin') {
+                setIsAdmin(true);
+            }
+        })();
+    }, [currentUserId]);
 
     // Update isConfession when filter changes
     useEffect(() => {
         setIsConfession(filter === 'confession');
     }, [filter]);
 
-    // Calculate remaining confessions
+    // Calculate remaining confessions using utility function
+    const checkRemainingConfessions = useCallback(async () => {
+        if (!isConfession) return;
+        try {
+            const todayMidnightIST = getISTMidnight();
+
+            const { data: confessions } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('user_id', currentUserId)
+                .eq('type', 'confession')
+                .gte('created_at', todayMidnightIST.toISOString());
+
+            const used = confessions?.length || 0;
+            setRemainingConfessions(Math.max(0, 2 - used));
+        } catch (e) {
+            console.warn('Could not check remaining confessions:', e);
+        }
+    }, [isConfession, currentUserId]);
+
     useEffect(() => {
-        const checkRemainingConfessions = async () => {
-            if (!isConfession) return;
-            try {
-                const now = new Date();
-                const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-                const istOffset = 5.5 * 60 * 60 * 1000;
-                const istTime = new Date(utc + istOffset);
-                const todayMidnightIST = new Date(istTime);
-                todayMidnightIST.setHours(0, 0, 0, 0);
-
-                const { data: confessions } = await supabase
-                    .from('messages')
-                    .select('id')
-                    .eq('user_id', currentUserId)
-                    .eq('type', 'confession')
-                    .gte('created_at', todayMidnightIST.toISOString());
-
-                const used = confessions?.length || 0;
-                setRemainingConfessions(Math.max(0, 2 - used));
-            } catch (e) {
-                console.warn('Could not check remaining confessions:', e);
-            }
-        };
         checkRemainingConfessions();
-    }, [isConfession, currentUserId, messages]);
+    }, [checkRemainingConfessions, messages]);
 
     // Memoize particles to prevent re-rendering on every state change
     const particles = useMemo(() => {
@@ -204,10 +225,6 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         if (localAura < 0) setIsShake(true);
     }, []);
 
-    const [profileModalOpen, setProfileModalOpen] = useState(false);
-    const [profileUserId, setProfileUserId] = useState<string | null>(null);
-    const [remainingConfessions, setRemainingConfessions] = useState(2);
-
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim()) return;
@@ -218,15 +235,10 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             return;
         }
 
-        // Check confession limit: max 2 confessions per day
+        // Check confession limit: max 2 confessions per day using utility
         if (isConfession) {
             try {
-                const now = new Date();
-                const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-                const istOffset = 5.5 * 60 * 60 * 1000;
-                const istTime = new Date(utc + istOffset);
-                const todayMidnightIST = new Date(istTime);
-                todayMidnightIST.setHours(0, 0, 0, 0);
+                const todayMidnightIST = getISTMidnight();
 
                 const { data: confessions } = await supabase
                     .from('messages')
@@ -352,9 +364,195 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         setMessageToReport(null);
     };
 
+    const handleAdminDelete = async (messageId: number) => {
+        if (!isAdmin) return;
+        
+        if (window.confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+            await supabase.from('messages').delete().eq('id', messageId);
+            setActiveMessageId(null);
+        }
+    };
+
     const handleReply = (msg: Message) => {
         setReplyingTo(msg);
         setActiveMessageId(null);
+    };
+
+    // Handle edit message (2-minute window)
+    const handleEditMessage = async (messageId: number) => {
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg || msg.user_id !== currentUserId) return;
+
+        const createdAt = new Date(msg.created_at);
+        const now = new Date();
+        const diffMinutes = (now.getTime() - createdAt.getTime()) / 60000;
+
+        if (diffMinutes > 2) {
+            alert('Edit window expired. You can only edit messages within 2 minutes of posting.');
+            return;
+        }
+
+        setEditingMessageId(messageId);
+        setEditContent(msg.content);
+        setActiveMessageId(null);
+    };
+
+    const handleSaveEdit = async (messageId: number) => {
+        if (!editContent.trim()) return;
+
+        await supabase
+            .from('messages')
+            .update({ 
+                content: editContent, 
+                edited_at: new Date().toISOString(),
+                is_edited: true 
+            })
+            .eq('id', messageId);
+
+        setEditingMessageId(null);
+        setEditContent('');
+    };
+
+    const handleCancelEdit = () => {
+        setEditingMessageId(null);
+        setEditContent('');
+    };
+
+    // Handle Me Too button
+    const handleMeToo = async (messageId: number) => {
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg) return;
+
+        const identity = JSON.parse(localStorage.getItem('universe_identity') || '{}');
+        const username = identity.username || 'Anon';
+        
+        const hasMeToo = msg.me_too_users?.includes(username);
+        
+        let newMeTooUsers: string[];
+        let newMeTooCount: number;
+
+        if (hasMeToo) {
+            // Remove Me Too
+            newMeTooUsers = msg.me_too_users.filter(u => u !== username);
+            newMeTooCount = Math.max(0, msg.me_too_count - 1);
+        } else {
+            // Add Me Too
+            newMeTooUsers = [...(msg.me_too_users || []), username];
+            newMeTooCount = msg.me_too_count + 1;
+
+            // Create notification for message author
+            if (msg.user_id !== currentUserId) {
+                await createNotification(
+                    msg.user_id,
+                    'me_too',
+                    messageId,
+                    username,
+                    `${username} said "Me Too" to your confession`
+                );
+            }
+        }
+
+        await supabase
+            .from('messages')
+            .update({ 
+                me_too_users: newMeTooUsers,
+                me_too_count: newMeTooCount
+            })
+            .eq('id', messageId);
+
+        setActiveMessageId(null);
+    };
+
+    // Handle create confession thread
+    const handleCreateThread = async (parentMessageId: number) => {
+        const parentMsg = messages.find(m => m.id === parentMessageId);
+        if (!parentMsg || parentMsg.type !== 'confession') return;
+
+        const content = prompt('Continue this confession thread:');
+        if (!content?.trim()) return;
+
+        // Check confession limit
+        try {
+            const todayMidnightIST = getISTMidnight();
+            const { data: confessions } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('user_id', currentUserId)
+                .eq('type', 'confession')
+                .gte('created_at', todayMidnightIST.toISOString());
+
+            if (confessions && confessions.length >= 2) {
+                alert('You can only post 2 confessions per day. Try again after midnight IST.');
+                return;
+            }
+        } catch (e) {
+            console.warn('Could not check confession limit:', e);
+        }
+
+        const identity = JSON.parse(localStorage.getItem('universe_identity') || '{}');
+
+        const { error } = await supabase.from('messages').insert({
+            college,
+            content,
+            user_id: currentUserId,
+            username: identity.username || 'Anon',
+            avatar_color: identity.color || '#8B5CF6',
+            type: 'confession',
+            group_name: 'confession',
+            thread_id: parentMessageId,
+            aura: 0,
+            flags: 0,
+            reactions: {},
+            reports: {},
+            me_too_count: 0,
+            me_too_users: []
+        });
+
+        if (!error) {
+            // Notify parent message author
+            if (parentMsg.user_id !== currentUserId) {
+                await createNotification(
+                    parentMsg.user_id,
+                    'thread',
+                    parentMessageId,
+                    identity.username || 'Anon',
+                    'Someone continued your confession thread'
+                );
+            }
+
+            // Update karma
+            try {
+                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', currentUserId).maybeSingle();
+                const currentKarma = profile?.karma ?? 0;
+                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', currentUserId);
+            } catch (e) {
+                console.warn('Could not update karma:', e);
+            }
+        }
+
+        setActiveMessageId(null);
+    };
+
+    // Create notification helper
+    const createNotification = async (
+        userId: string,
+        type: string,
+        messageId: number,
+        fromUsername: string,
+        content: string
+    ) => {
+        try {
+            await supabase.from('notifications').insert({
+                user_id: userId,
+                type,
+                message_id: messageId,
+                from_username: fromUsername,
+                content,
+                is_read: false
+            });
+        } catch (e) {
+            console.warn('Could not create notification:', e);
+        }
     };
 
     // handleReplyClick removed (unused)
@@ -477,6 +675,18 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                                 Confession
                                             </span>
                                         )}
+                                        {msg.thread_id && (
+                                            <span className="text-[8px] text-violet-300 font-bold uppercase tracking-wider border border-violet-400/30 px-1 rounded">
+                                                Thread
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {isMe && msg.thread_id && (
+                                    <div className="flex justify-end mb-1">
+                                        <span className="text-[8px] text-violet-200 font-bold uppercase tracking-wider border border-violet-300/30 px-1 rounded">
+                                            Thread
+                                        </span>
                                     </div>
                                 )}
 
@@ -490,9 +700,36 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                     </div>
                                 )}
 
-                                <p className="text-sm leading-snug break-words font-normal whitespace-pre-wrap">
-                                    {msg.content}
-                                </p>
+                                {/* Edit mode or display mode */}
+                                {editingMessageId === msg.id ? (
+                                    <div className="space-y-2">
+                                        <textarea
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            className="w-full bg-black/30 text-white p-2 rounded text-sm border border-white/20 focus:border-primary outline-none resize-none"
+                                            rows={3}
+                                            autoFocus
+                                        />
+                                        <div className="flex space-x-2">
+                                            <button
+                                                onClick={() => handleSaveEdit(msg.id)}
+                                                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs"
+                                            >
+                                                Save
+                                            </button>
+                                            <button
+                                                onClick={handleCancelEdit}
+                                                className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm leading-snug break-words font-normal whitespace-pre-wrap">
+                                        {msg.content}
+                                    </p>
+                                )}
 
                                 {msg.reactions && Object.entries(msg.reactions).some(([_, users]) => users.length > 0) && (
                                     <div className="flex flex-wrap gap-1 mt-2 mb-1">
@@ -515,6 +752,14 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                     </div>
                                 )}
 
+                                {/* Me Too Count */}
+                                {msg.type === 'confession' && msg.me_too_count > 0 && (
+                                    <div className="mt-2 flex items-center space-x-1 text-xs text-pink-300">
+                                        <Users className="w-3 h-3" />
+                                        <span>{msg.me_too_count} Me Too</span>
+                                    </div>
+                                )}
+
                                 <div className={cn(
                                     "flex items-center justify-end mt-1 space-x-1",
                                     isMe ? "text-violet-200" : "text-gray-400",
@@ -522,6 +767,7 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                 )}>
                                     <span className="text-[9px]">
                                         {format(new Date(msg.created_at), 'h:mm a')}
+                                        {msg.is_edited && ' (edited)'}
                                     </span>
                                     {msg.aura !== 0 && (
                                         <span className={cn(
@@ -554,9 +800,55 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                         <button onClick={(e) => { e.stopPropagation(); handleReply(msg); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-primary transition-colors" title="Reply">
                                             <MessageCircle className="w-4 h-4" />
                                         </button>
+                                        {/* Me Too button (confession only) */}
+                                        {msg.type === 'confession' && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleMeToo(msg.id); }} 
+                                                className={cn(
+                                                    "p-1.5 rounded-lg transition-colors",
+                                                    msg.me_too_users?.includes(JSON.parse(localStorage.getItem('universe_identity') || '{}').username || 'Anon')
+                                                        ? "text-pink-400 bg-white/10"
+                                                        : "text-gray-400 hover:bg-white/10 hover:text-pink-400"
+                                                )} 
+                                                title="Me Too">
+                                                <Users className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        {/* Thread button (confession only) */}
+                                        {msg.type === 'confession' && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleCreateThread(msg.id); }} 
+                                                className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-violet-400 transition-colors" 
+                                                title="Continue Thread">
+                                                <MessageCircle className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        {/* Edit button (own messages only, within 2 minutes) */}
+                                        {isMe && (() => {
+                                            const createdAt = new Date(msg.created_at);
+                                            const now = new Date();
+                                            const diffMinutes = (now.getTime() - createdAt.getTime()) / 60000;
+                                            return diffMinutes <= 2;
+                                        })() && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleEditMessage(msg.id); }} 
+                                                className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-green-400 transition-colors" 
+                                                title="Edit (2 min window)">
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         <button onClick={(e) => { e.stopPropagation(); setProfileUserId(msg.user_id); setProfileModalOpen(true); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="View Profile">
                                             <User className="w-4 h-4" />
                                         </button>
+                                        {/* Admin delete button */}
+                                        {isAdmin && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleAdminDelete(msg.id); }} 
+                                                className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-600 transition-colors"
+                                                title="Admin Delete">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         <button onClick={(e) => { e.stopPropagation(); handleFlag(msg.id); }} className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-500 transition-colors">
                                             <AlertTriangle className="w-4 h-4" />
                                         </button>

@@ -6,6 +6,20 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+/**
+ * Get IST midnight (today at 00:00:00 IST)
+ * Utility to avoid code duplication for timezone calculations
+ */
+export function getISTMidnight(): Date {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    const istTime = new Date(utc + istOffset);
+    const todayMidnightIST = new Date(istTime);
+    todayMidnightIST.setHours(0, 0, 0, 0);
+    return todayMidnightIST;
+}
+
 // Gen Z Usernames
 const ADJECTIVES = [
     'Sus', 'Based', 'Cringe', 'Goated', 'Mid', 'Salty', 'Woke', 'Dank', 'Ghosted', 'Simp',

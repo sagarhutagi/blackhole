@@ -143,6 +143,11 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
                 </div>
                 {loading ? (
                     <div className="text-gray-300">Loading...</div>
+                ) : !profile ? (
+                    <div className="text-gray-400">
+                        <p>Profile not found.</p>
+                        <p className="text-sm mt-2">This user hasn't completed their profile yet.</p>
+                    </div>
                 ) : profile ? (
                     showSettings ? (
                         <div className="space-y-4">

@@ -36,6 +36,8 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
     const [hallOfFameExpanded, setHallOfFameExpanded] = useState(true);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isCreator, setIsCreator] = useState(false);
 
     const displayedGroups = showAllGroups ? hashtagGroups : hashtagGroups.slice(0, 5);
 
@@ -43,6 +45,20 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
         (async () => {
             const { data: { user } } = await supabase.auth.getUser();
             setCurrentUserId(user?.id || null);
+            
+            // Check if user is admin or creator
+            if (user?.id) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role, is_creator')
+                    .eq('id', user.id)
+                    .maybeSingle();
+                
+                if (profile) {
+                    setIsAdmin(profile.role === 'admin');
+                    setIsCreator(profile.is_creator === true);
+                }
+            }
         })();
     }, []);
 
@@ -234,7 +250,19 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                         <div>
                             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-violet-300 to-white">Black Hole</h2>
                             {username && (
-                                <p className="text-xs text-gray-400 mt-1">@{username}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-gray-400">@{isCreator ? 'creator' : username}</p>
+                                    {isCreator && (
+                                        <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-500 to-orange-500 text-white border border-yellow-400/30">
+                                            Creator
+                                        </span>
+                                    )}
+                                    {isAdmin && !isCreator && (
+                                        <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-600 text-white border border-violet-400/30">
+                                            Admin
+                                        </span>
+                                    )}
+                                </div>
                             )}
                             <div className="flex items-center space-x-2 mt-2">
                                 <div className="flex items-center space-x-1.5 text-xs font-medium text-gray-400 bg-white/5 px-2 py-1 rounded border border-white/5">
