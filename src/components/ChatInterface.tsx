@@ -682,11 +682,11 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                 {!isMe && (
                                     <div className="flex items-center space-x-2 mb-1">
                                         <span className="block text-[12px] font-bold tracking-wide opacity-90 truncate" style={{ color: msg.type === 'confession' ? '#fff' : msg.avatar_color }}>
-                                            {msg.username}
+                                            {isAdminMessage && msg.username === 'creator' ? 'creator' : msg.username}
                                         </span>
-                                        {isAdminMessage && (
+                                        {isAdminMessage && msg.username === 'creator' && (
                                             <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-500 to-orange-500 text-white border border-yellow-400/30 shadow-lg">
-                                                {msg.username === 'creator' ? '⭐ Creator' : 'Admin'}
+                                                ⭐ Creator
                                             </span>
                                         )}
                                         {msg.type === 'confession' && (
@@ -701,10 +701,10 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                                         )}
                                     </div>
                                 )}
-                                {isMe && isAdminMessage && (
+                                {isMe && isAdminMessage && msg.username === 'creator' && (
                                     <div className="flex justify-end mb-1">
                                         <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-500 to-orange-500 text-white border border-yellow-400/30 shadow-lg">
-                                            {msg.username === 'creator' ? '⭐ Creator' : 'Admin'}
+                                            ⭐ Creator
                                         </span>
                                     </div>
                                 )}
