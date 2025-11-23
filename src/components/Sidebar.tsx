@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getTopHashtags, cleanupInactiveGroups } from '../lib/hashtags';
 import { HallOfFame } from './HallOfFame';
 import { ProfileModal } from './ProfileModal';
-import { Hash, MessageCircle, Ghost, ChevronLeft, ChevronRight, LogOut, Plus, ChevronDown, ChevronUp, X, User } from 'lucide-react';
+import { AdminPanel } from './AdminPanel';
+import { Hash, MessageCircle, Ghost, ChevronLeft, ChevronRight, LogOut, Plus, ChevronDown, ChevronUp, X, User, Shield } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -38,6 +39,7 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isCreator, setIsCreator] = useState(false);
+    const [showAdminPanel, setShowAdminPanel] = useState(false);
 
     const displayedGroups = showAllGroups ? hashtagGroups : hashtagGroups.slice(0, 5);
 
@@ -337,6 +339,22 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                             <Ghost className={cn("transition-colors", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
                             {!isCollapsed && <span className="font-medium text-sm">Confessions</span>}
                         </button>
+
+                        {/* Admin Panel Button */}
+                        {(isAdmin || isCreator) && (
+                            <button
+                                onClick={() => setShowAdminPanel(true)}
+                                className={cn(
+                                    "w-full flex items-center transition-all duration-200 group relative",
+                                    isCollapsed ? "justify-center p-2 rounded-lg" : "space-x-3 px-3 py-2 rounded-lg",
+                                    "text-violet-400 hover:bg-violet-500/10 hover:text-violet-300 border border-violet-500/20"
+                                )}
+                                title={isCollapsed ? "Admin Panel" : undefined}
+                            >
+                                <Shield className={cn("transition-colors", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
+                                {!isCollapsed && <span className="font-medium text-sm">Admin Panel</span>}
+                            </button>
+                        )}
                     </div>
 
                     {/* Hashtag Groups */}
@@ -478,6 +496,14 @@ export function Sidebar({ college, currentFilter, onFilterChange, onSignOut, use
                 isOpen={showProfileModal}
                 onClose={() => setShowProfileModal(false)}
             />
+
+            {/* Admin Panel */}
+            {showAdminPanel && (
+                <AdminPanel
+                    college={college}
+                    onClose={() => setShowAdminPanel(false)}
+                />
+            )}
         </>
     );
 }

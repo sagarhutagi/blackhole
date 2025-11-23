@@ -190,6 +190,51 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Rename karma column to aura if it exists (and aura doesn't exist yet)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'karma'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'aura'
+  ) THEN
+    ALTER TABLE public.profiles RENAME COLUMN karma TO aura;
+  END IF;
+  
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'show_karma'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'show_aura'
+  ) THEN
+    ALTER TABLE public.profiles RENAME COLUMN show_karma TO show_aura;
+  END IF;
+END $$;
+
+-- Add aura column if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'aura'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN aura integer default 0;
+  END IF;
+END $$;
+
 -- Add visibility columns if they don't exist
 DO $$
 BEGIN
