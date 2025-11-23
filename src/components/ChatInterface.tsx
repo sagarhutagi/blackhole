@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Send, AlertTriangle, Flame, Skull, Smile, Frown, MessageCircle, X, Menu, Ghost, User, Edit2, Users, Bell, Trash2 } from 'lucide-react';
+import { Send, AlertTriangle, Flame, Skull, Smile, Frown, MessageCircle, X, Menu, Ghost, User, Edit2, Users, Trash2 } from 'lucide-react';
 import { cn, getISTMidnight } from '../lib/utils';
 import { format } from 'date-fns';
 import { updateHashtagGroup } from '../lib/hashtags';
