@@ -74,7 +74,7 @@ export function ProfileCompletionModal({ userId, onComplete }: ProfileCompletion
                     gender,
                     branch,
                     year,
-                    karma: 0,
+                    aura: 0,
                     role: 'user',
                     is_creator: false
                 });

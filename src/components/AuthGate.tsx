@@ -101,7 +101,7 @@ export function AuthGate({ onAuthSuccess }: AuthGateProps) {
                             gender: gender || null,
                             branch: branch || null,
                             year: year || null,
-                            karma: 0
+                            aura: 0
                         });
                     }
                 } catch (e) {

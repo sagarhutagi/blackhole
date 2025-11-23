@@ -303,13 +303,13 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
             if (groupName !== 'main' && groupName !== 'confession') {
                 await updateHashtagGroup(college, groupName);
             }
-            // Increase karma for user who posted
+            // Increase aura for user who posted
             try {
-                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', currentUserId).maybeSingle();
-                const currentKarma = profile?.karma ?? 0;
-                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', currentUserId);
+                const { data: profile } = await supabase.from('profiles').select('aura').eq('id', currentUserId).maybeSingle();
+                const currentAura = profile?.aura ?? 0;
+                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', currentUserId);
             } catch (e) {
-                console.warn('Could not update karma:', e);
+                console.warn('Could not update aura:', e);
             }
             setNewMessage('');
             setReplyingTo(null);
@@ -334,13 +334,13 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
         if (!wasAlready) {
             newReactions[emoji] = [...(newReactions[emoji] || []), currentUserId];
             
-            // Increment karma for message author when they receive a reaction
+            // Increment aura for message author when they receive a reaction
             try {
-                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', msg.user_id).maybeSingle();
-                const currentKarma = profile?.karma ?? 0;
-                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', msg.user_id);
+                const { data: profile } = await supabase.from('profiles').select('aura').eq('id', msg.user_id).maybeSingle();
+                const currentAura = profile?.aura ?? 0;
+                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', msg.user_id);
             } catch (e) {
-                console.warn('Could not update karma:', e);
+                console.warn('Could not update aura:', e);
             }
         }
 
@@ -533,13 +533,13 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                 );
             }
 
-            // Update karma
+            // Update aura
             try {
-                const { data: profile } = await supabase.from('profiles').select('karma').eq('id', currentUserId).maybeSingle();
-                const currentKarma = profile?.karma ?? 0;
-                await supabase.from('profiles').update({ karma: currentKarma + 1 }).eq('id', currentUserId);
+                const { data: profile } = await supabase.from('profiles').select('aura').eq('id', currentUserId).maybeSingle();
+                const currentAura = profile?.aura ?? 0;
+                await supabase.from('profiles').update({ aura: currentAura + 1 }).eq('id', currentUserId);
             } catch (e) {
-                console.warn('Could not update karma:', e);
+                console.warn('Could not update aura:', e);
             }
         }
 
@@ -923,15 +923,21 @@ export function ChatInterface({ college, currentUserId, filter = 'all', scrollTo
                         )}
 
                         <form onSubmit={handleSendMessage} className="flex-1 flex items-center gap-2">
-                            <input
-                                type="text"
+                            <textarea
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSendMessage(e);
+                                    }
+                                }}
                                 placeholder={isConfession ? `Spill the tea anonymously... (${remainingConfessions}/2 left today)` : "Yap here..."}
                                 className={cn(
-                                    "flex-1 bg-transparent text-white py-3 px-2 focus:outline-none placeholder-gray-500 text-[15px]",
+                                    "flex-1 bg-transparent text-white py-3 px-2 focus:outline-none placeholder-gray-500 text-[15px] resize-none max-h-32 min-h-[48px]",
                                     isConfession && "placeholder-pink-500/50"
                                 )}
+                                rows={1}
                                 disabled={loading}
                             />
                             <button

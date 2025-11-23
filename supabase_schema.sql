@@ -180,11 +180,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   gender text,
   branch text,
   year text,
-  karma integer default 0,
+  aura integer default 0,
   show_gender boolean default true,
   show_branch boolean default true,
   show_year boolean default true,
-  show_karma boolean default true,
+  show_aura boolean default true,
   role text default 'user',
   is_creator boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -224,9 +224,9 @@ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_schema = 'public' 
     AND table_name = 'profiles' 
-    AND column_name = 'show_karma'
+    AND column_name = 'show_aura'
   ) THEN
-    ALTER TABLE public.profiles ADD COLUMN show_karma boolean default true;
+    ALTER TABLE public.profiles ADD COLUMN show_aura boolean default true;
   END IF;
   
   IF NOT EXISTS (

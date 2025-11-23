@@ -20,7 +20,7 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
     const [showGender, setShowGender] = useState(true);
     const [showBranch, setShowBranch] = useState(true);
     const [showYear, setShowYear] = useState(true);
-    const [showKarma, setShowKarma] = useState(true);
+    const [showAura, setShowAura] = useState(true);
 
     useEffect(() => {
         (async () => {
@@ -48,7 +48,7 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
                 setShowGender(data?.show_gender ?? true);
                 setShowBranch(data?.show_branch ?? true);
                 setShowYear(data?.show_year ?? true);
-                setShowKarma(data?.show_karma ?? true);
+                setShowAura(data?.show_aura ?? true);
             }
             setLoading(false);
         })();
@@ -80,7 +80,7 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
             show_gender: showGender,
             show_branch: showBranch,
             show_year: showYear,
-            show_karma: showKarma
+            show_aura: showAura
         }).eq('id', userId);
         
         if (error) {
@@ -91,7 +91,7 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
                 show_gender: showGender, 
                 show_branch: showBranch, 
                 show_year: showYear,
-                show_karma: showKarma 
+                show_aura: showAura 
             });
             setShowSettings(false);
         }
@@ -101,13 +101,13 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
     if (!isOpen) return null;
 
     const isOwnProfile = userId === currentUserId;
-    const shouldShowField = (field: 'gender' | 'branch' | 'year' | 'karma') => {
+    const shouldShowField = (field: 'gender' | 'branch' | 'year' | 'aura') => {
         if (isOwnProfile) return true;
         const fieldMap = {
             gender: profile?.show_gender ?? true,
             branch: profile?.show_branch ?? true,
             year: profile?.show_year ?? true,
-            karma: profile?.show_karma ?? true
+            aura: profile?.show_aura ?? true
         };
         return fieldMap[field];
     };
@@ -207,18 +207,18 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
 
                                 <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg">
                                     <div className="flex items-center gap-2">
-                                        {showKarma ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-gray-500" />}
-                                        <span className="text-sm">Karma</span>
+                                        {showAura ? <Eye className="w-4 h-4 text-green-400" /> : <EyeOff className="w-4 h-4 text-gray-500" />}
+                                        <span className="text-sm">Aura</span>
                                     </div>
                                     <button
-                                        onClick={() => setShowKarma(!showKarma)}
+                                        onClick={() => setShowAura(!showAura)}
                                         className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                            showKarma 
+                                            showAura 
                                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
                                                 : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
                                         }`}
                                     >
-                                        {showKarma ? 'Visible' : 'Hidden'}
+                                        {showAura ? 'Visible' : 'Hidden'}
                                     </button>
                                 </div>
                             </div>
@@ -271,8 +271,8 @@ export function ProfileModal({ userId, isOpen, onClose }: ProfileModalProps) {
                                 {shouldShowField('year') && (
                                     <div className="bg-white/5 p-3 rounded">Year<br/><span className="font-bold">{profile.year || '—'}</span></div>
                                 )}
-                                {shouldShowField('karma') && (
-                                    <div className="bg-white/5 p-3 rounded">Karma<br/><span className="font-bold">{profile.karma ?? 0}</span></div>
+                                {shouldShowField('aura') && (
+                                    <div className="bg-white/5 p-3 rounded">Aura<br/><span className="font-bold">+{profile.aura ?? 0} points</span></div>
                                 )}
                             </div>
                         )}
