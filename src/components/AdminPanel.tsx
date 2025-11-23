@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
-    Users, MessageSquare, Flag, TrendingUp, Shield, Trash2, 
-    Ban, CheckCircle, XCircle, Search, Filter, Crown, 
+    Users, MessageSquare, Flag, Shield, Trash2, 
+    Ban, CheckCircle, Search, Crown, 
     Activity, BarChart3, Clock, Hash, Ghost, Award, Zap
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -58,7 +58,6 @@ export function AdminPanel({ college, onClose }: AdminPanelProps) {
     });
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'flagged' | 'confessions'>('all');
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchStats();
@@ -135,8 +134,6 @@ export function AdminPanel({ college, onClose }: AdminPanelProps) {
             if (data) setUsers(data);
         } catch (error) {
             console.error('Error fetching users:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
